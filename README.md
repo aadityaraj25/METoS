@@ -1,2 +1,1 @@
-Updating readme.md
-hi im akr
+Update readme.md
