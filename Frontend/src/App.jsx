@@ -1,14 +1,7 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
+import Landing from './pages/Landing.jsx'
 
 function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-    <h1>Home Page</h1>
-    </>
-  )
+  return <Landing />
 }
 
 export default App
