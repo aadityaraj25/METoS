@@ -11,7 +11,7 @@ const Landing = () => {
         <main className="min-h-screen bg-slate-50 text-slate-900">
             <div className="mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-6 py-16 sm:px-8 lg:px-10">
                 <header className="mb-12 flex items-center justify-between text-sm text-slate-500">
-                    <div className="font-semibold">METoS</div>
+                    <div className="text-xl font-bold text-slate-900">METoS</div>
                     <a href="/login" className="rounded-full border border-slate-300 px-4 py-2 text-slate-700 transition hover:bg-slate-100">
                         Login
                     </a>
