@@ -25,6 +25,11 @@ const teamSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  skills: [{
+    type: String,
+    trim: true,
+    lowercase: true,
+  }],
   members: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

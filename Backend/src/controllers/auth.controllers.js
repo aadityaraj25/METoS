@@ -5,8 +5,8 @@ const User = require("../models/user.models.js");
 
 // Generate JWT token
 const generateToken = (id) => {
-  return jwt.sign({ id: String(id) }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || "7d",
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE,
   });
 };
 
@@ -26,6 +26,7 @@ exports.register = async (req, res) => {
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
+    console.log("Existing user:", existingUser); // Debugging line
     if (existingUser) {
       return res.status(400).json({
         success: false,

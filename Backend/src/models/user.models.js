@@ -39,6 +39,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  skills: [{
+    type: String,
+    trim: true,
+    lowercase: true,
+  }],
   darkMode: {
     type: Boolean,
     default: false,

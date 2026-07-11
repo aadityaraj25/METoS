@@ -2,9 +2,11 @@ const express = require("express");
 const cors = require("cors");
 const authRoutes = require("./routes/auth/auth.routes");
 const teamRoutes = require("./routes/team.routes");
-
 const app = express();
 
+const rp = require("request-promise");
+const cherio = require("cherio");
+const Table = require("cli-table3");
 app.use(cors());
 app.use(express.json());
 
