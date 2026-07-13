@@ -1,64 +1,110 @@
-// user models
+import mongoose from 'mongoose'
 
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
+const skillSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, "Name is required"],
-    trim: true,
+    proficiency: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5, // 1-5 dots like in your UI
+    },
   },
-  email: {
-    type: String,
-    required: [true, "Email is required"],
-    unique: true,
-    lowercase: true,
-    trim: true,
-  },
-  password: {
-    type: String,
-    required: [true, "Password is required"],
-    minlength: 6,
-    select: false,
-  },
-  role: {
-    type: String,
-    enum: ["member", "teamleader"],
-    required: true,
-  },
-  college: {
-    type: String,
-    trim: true,
-  },
-  pid: {
-    type: String,
-    trim: true,
-  },
-  team_name: {
-    type: String,
-    trim: true,
-  },
-  darkMode: {
-    type: Boolean,
-    default: false,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+  { _id:false }
+);
 
-// Hash password before saving
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
-  this.password = await bcrypt.hash(this.password, 12);
-  next();
-});
 
-// Compare password method
-userSchema.methods.comparePassword = async function (candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
-};
+const userSchema = new mongoose.Schema(
+  {
+    username: {
+      type: String,
+      unique: true,
+      required: true,
+      trim:true,
+    },
+    fullName: {
+      type: String,
+      required: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
 
-module.exports = mongoose.model("User", userSchema);
+
+    profileImage:{
+      type:String,  // handeled later by cloudinary or OAuth profile image response
+    },
+    headline:{
+      type:String,
+    },
+    bio:{
+      type:String,
+    },
+    location:{
+      type:String,
+    },
+
+    experience:{
+      type:Number,
+      default:0,
+    },
+
+    // social links ---> not active yet
+    socialLinks: {
+      github: {
+        type: String,
+        default: "",
+      },
+      linkedin: {
+        type: String,
+        default: "",
+      },
+      portfolio: {
+        type: String,
+        default: "",
+      },
+      twitter: {
+        type: String,
+        default: "",
+      },
+    },
+
+    skills: [skillSchema],
+
+    projects: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Project",
+      },
+    ],
+
+    groups: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Group",
+      },
+    ],
+
+    connections: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+  },
+  {
+    timestamps: true,
+  }
+);
+
+export default User = mongoose.model("User", userSchema);
+
+
+

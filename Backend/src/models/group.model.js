@@ -1,7 +1,0 @@
-/*
-team name
-problem id 
-problem statement number
-reference user
-college name
-*/
