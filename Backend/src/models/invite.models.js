@@ -8,7 +8,7 @@ const inviteSchema = new mongoose.Schema(
             required: true,
         },
 
-        inviteEmail: {
+        inviteeEmail: {
             type: String,
             required: true,
             lowercase: true,
@@ -19,6 +19,12 @@ const inviteSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Group",
             required: true,
+        },
+
+        token: {
+            type: String,
+            required: true,
+            unique: true,
         },
 
         status: {
