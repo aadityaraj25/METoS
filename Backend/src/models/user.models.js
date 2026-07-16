@@ -39,6 +39,11 @@ const userSchema = new mongoose.Schema(
       unique: true,
     },
 
+    toogleMode:{
+      type:Boolean,
+      default:false,
+    },
+
     password: {
       type:String, 
       required: [ true, "password is required" ],
@@ -135,7 +140,7 @@ userSchema.methods.generateAccessToken = function(){
             username:this.username,
             fullName:this.fullName,
         },
-
+        
         // access token
         process.env.ACCESS_TOKEN_SECRET,
         

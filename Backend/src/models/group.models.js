@@ -59,4 +59,23 @@ const groupSchema = new mongoose.Schema({
     timestamps:true,
 })
 
+groupSchema.methods.generateToken = function(userId){
+    // returns the access token
+    return jwt.sign(
+        // payload
+        {
+            _id:this._id,
+            userId: userId,
+        },
+        
+        // access token
+        process.env.INVITE_TOKEN_SECRET,
+        
+        // token expiry time
+        {
+            expiresIn: process.env.INVITE_TOKEN_EXPIRY,
+        }
+    )
+}
+
 export const Group = mongoose.model("Group", groupSchema)
