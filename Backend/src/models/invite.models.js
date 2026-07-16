@@ -8,7 +8,7 @@ const inviteSchema = new mongoose.Schema(
             required: true,
         },
 
-        inviteeEmail: {
+        inviteEmail: {
             type: String,
             required: true,
             lowercase: true,
