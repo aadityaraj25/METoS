@@ -1,81 +1,68 @@
-/*
-team name
-problem id 
-problem statement number
-reference user
-college name
-*/
-
-import mongoose from 'mongoose'
+import mongoose from 'mongoose';
+import jwt from 'jsonwebtoken';
 
 const groupSchema = new mongoose.Schema({
-    teamName:{
-        type:String,
-        required:[true, "team name is required"]
-    },
-    problemId:{
-        type:String,
-        required:[true, "Problem ID is required"],
-    },
-    problemStatement:{
+    teamName: {
         type: String,
-        required:[true, "Problem Statement is required"],
+        required: [true, "team name is required"],
     },
-    category:{
-        type:String,
-        required:[true, "Category is required"],
+    problemId: {
+        type: String,
+        required: [true, "Problem ID is required"],
     },
-    skills:{     //to be discussed string or ref
-        type:String,
-        required:true,
+    problemStatement: {
+        type: String,
+        required: [true, "Problem Statement is required"],
     },
-    teamSize:{
-        type:Number,
-        required:[true, "Team Size is required"],
-        default:1,
-        min:1,
+    category: {
+        type: String,
+        required: [true, "Category is required"],
     },
-    visibility:{
-        type:Boolean,
-        required:true,
+    skills: {
+        type: String,
+        required: true,
     },
-    leader:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"User",
-        required:[true,"leader is required"],
+    teamSize: {
+        type: Number,
+        required: [true, "Team Size is required"],
+        default: 1,
+        min: 1,
     },
-    teamMembers:[
+    visibility: {
+        type: Boolean,
+        required: true,
+    },
+    leader: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: [true, "leader is required"],
+    },
+    teamMembers: [
         {
-            type:mongoose.Schema.Types.ObjectId,
-            ref:"User",
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
         },
     ],
     status: {
-      type: String,
-      enum: ["OPEN", "CLOSED"],
-      default: "OPEN",
+        type: String,
+        enum: ["OPEN", "CLOSED"],
+        default: "OPEN",
     },
-},{
-    timestamps:true,
-})
+}, {
+    timestamps: true,
+});
 
-groupSchema.methods.generateToken = function(userId){
-    // returns the access token
+groupSchema.methods.generateInviteToken = function (userId) {
     return jwt.sign(
-        // payload
         {
-            _id:this._id,
+            groupId: this._id,
             userId: userId,
         },
-        
-        // access token
         process.env.INVITE_TOKEN_SECRET,
-        
-        // token expiry time
         {
-            expiresIn: process.env.INVITE_TOKEN_EXPIRY,
+            expiresIn: process.env.INVITE_TOKEN_EXPIRY || "7d",
         }
-    )
-}
+    );
+};
 
-export const Group = mongoose.model("Group", groupSchema)
+export const Group = mongoose.model("Group", groupSchema);

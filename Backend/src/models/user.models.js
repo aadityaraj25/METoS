@@ -1,6 +1,6 @@
-import mongoose from 'mongoose'
-import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 const skillSchema = new mongoose.Schema(
   {
@@ -9,17 +9,15 @@ const skillSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-
     proficiency: {
       type: Number,
       required: true,
       min: 1,
-      max: 5, // 1-5 dots like in your UI
+      max: 5,
     },
   },
-  { _id:false }
+  { _id: false }
 );
-
 
 const userSchema = new mongoose.Schema(
   {
@@ -27,7 +25,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
-      trim:true,
+      trim: true,
     },
     fullName: {
       type: String,
@@ -38,141 +36,101 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-
-    toogleMode:{
-      type:Boolean,
-      default:false,
+    toogleMode: {
+      type: Boolean,
+      default: false,
     },
-
     password: {
-      type:String, 
-      required: [ true, "password is required" ],
+      type: String,
+      required: [true, "password is required"],
     },
-
-    profileImage:{
-      type:String,  // handeled later by cloudinary or OAuth profile image response
+    profileImage: {
+      type: String,
     },
-    headline:{
-      type:String,
+    headline: {
+      type: String,
     },
-    bio:{
-      type:String,
+    bio: {
+      type: String,
     },
-    location:{
-      type:String,
+    location: {
+      type: String,
     },
-
-    experience:{
-      type:Number,
-      default:0,
+    experience: {
+      type: Number,
+      default: 0,
     },
-
-    // social links ---> not active yet
     socialLinks: {
-      github: {
-        type: String,
-        default: "",
-      },
-      linkedin: {
-        type: String,
-        default: "",
-      },
-      portfolio: {
-        type: String,
-        default: "",
-      },
-      twitter: {
-        type: String,
-        default: "",
-      },
+      github: { type: String, default: "" },
+      linkedin: { type: String, default: "" },
+      portfolio: { type: String, default: "" },
+      twitter: { type: String, default: "" },
     },
-
     skills: [skillSchema],
-
     projects: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Project",
       },
     ],
-
     groups: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Group",
       },
     ],
-
     connections: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
       },
     ],
+    refreshToken: {
+      type: String,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-//bcrypt 
-// bcrypt.hash(password, saltRounds) //it is no. of rounds the hashing will be done, async (err, hash) => {}
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
+  this.password = await bcrypt.hash(this.password, 10);
+});
 
-// saving the password in hashed form before saving it to the DB
-// mongoDB hooks
-userSchema.pre("save", async function (){
-    if(!this.isModified("password")) return
-    this.password = await bcrypt.hash(this.password,10)
-})
+userSchema.methods.isPasswordCorrect = async function (password) {
+  return await bcrypt.compare(password, this.password);
+};
 
-// user defined methods -- isPasswordCorrect is added
-userSchema.methods.isPasswordCorrect = async function (password){
-    return await bcrypt.compare(password,this.password)
-}
+userSchema.methods.generateAccessToken = function () {
+  return jwt.sign(
+    {
+      _id: this._id,
+      email: this.email,
+      username: this.username,
+      fullName: this.fullName,
+    },
+    process.env.ACCESS_TOKEN_SECRET,
+    {
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
+    }
+  );
+};
 
-userSchema.methods.generateAccessToken = function(){
-    // returns the access token
-    return jwt.sign(
-        // payload
-        {
-            _id:this._id,
-            email:this.email,
-            username:this.username,
-            fullName:this.fullName,
-        },
-        
-        // access token
-        process.env.ACCESS_TOKEN_SECRET,
-        
-        // token expiry time
-        {
-            expiresIn: process.env.ACCESS_TOKEN_EXPIRY
-        }
-    )
-}
+userSchema.methods.generateRefreshToken = function () {
+  return jwt.sign(
+    {
+      _id: this._id,
+      email: this.email,
+      username: this.username,
+      fullName: this.fullName,
+    },
+    process.env.REFRESH_TOKEN_SECRET,
+    {
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
+    }
+  );
+};
 
-userSchema.methods.generateRefreshToken = function(){
-    // returns the refresh token
-    return jwt.sign(
-        // payload
-        {
-            _id:this._id,
-            email:this.email,
-            username:this.username,
-            fullName:this.fullName,
-        },
-
-        // access token
-        process.env.REFRESH_TOKEN_SECRET,
-        
-        // token expiry time
-        {
-            expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
-        }
-    )
-}
-
-export default User = mongoose.model("User", userSchema);
-
-
-
+export const User = mongoose.model("User", userSchema);
