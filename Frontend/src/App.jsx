@@ -1,7 +1,5 @@
-import Landing from './pages/Landing.jsx'
+import { Outlet } from "react-router-dom";
 
-function App() {
-  return <Landing />
+export default function App() {
+  return <Outlet />;
 }
-
-export default App
