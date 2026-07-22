@@ -5,6 +5,7 @@ import Profile from "./pages/Profile.jsx";
 import CreateGroup from "./pages/CreateGroup.jsx";
 import Workspace from "./pages/Workspace.jsx";
 import Landing from "./pages/Landing.jsx"
+import ErrorUrl from "./components/ErrorUrl.jsx";
 
 export default function AppRouter() {
   return (
@@ -16,7 +17,8 @@ export default function AppRouter() {
           <Route path="/create-group" element={<CreateGroup />} />
           <Route path="/workspace" element={<Workspace />} />
           <Route path="/home" element={<Landing/>} />
-          <Route path="*" element={<Explore />} />
+          <Route path="/dashboard" element={<Explore/>} />
+          <Route path="*" element={<ErrorUrl />} />
         </Route>
       </Routes>
     </BrowserRouter>
