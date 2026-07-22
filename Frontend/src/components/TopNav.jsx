@@ -11,7 +11,7 @@ export default function TopNav() {
           <circle cx="13" cy="20" r="3" fill="#1E9C86" />
           <path d="M8.5 7.5L11 17.5M17.5 7.5L15 17.5" stroke="#161B2C" strokeWidth="1.4" strokeLinecap="round" />
         </svg>
-        Junction
+        <button>METoS</button>
       </div>
       <nav className="nav-links">
         <NavLink to="/" end className={linkClass}>Explore</NavLink>
