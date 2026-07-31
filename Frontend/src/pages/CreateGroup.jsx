@@ -1,11 +1,16 @@
 import { Fragment, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import TopNav from "@/components/TopNav";
+import { useAuth } from "../context/AuthContext.jsx";
+import * as groupsApi from "../api/groups.js";
 
 const CATEGORIES = ["Sustainability", "Climate", "HealthTech", "EdTech", "Accessibility", "Other"];
 const SKILLS = ["Data Analysis", "Mobile Dev", "Backend", "Design", "Marketing", "Fundraising"];
 
 function CreateGroupPage() {
-  const [step, setStep] = useState(1);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [step, setStep] = useState(0);
   const [title, setTitle] = useState("Cutting campus food waste with smarter dining-hall data");
   const [desc, setDesc] = useState(
     "Building a lightweight tracker so dining halls can predict demand instead of over-preparing. Early pilot data from two campuses already in hand."
@@ -20,6 +25,31 @@ function CreateGroupPage() {
 
   const stepNodes = ["Problem", "Team needs", "Review & post"];
   const nextLabel = step === 2 ? "Post problem" : step === 1 ? "Next: Review" : "Next";
+
+  const handleNext = async () => {
+    if (step < 2) {
+      setStep(s => s + 1);
+      return;
+    }
+    try {
+      const payload = {
+        teamName: title,
+        problemId: title.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now(),
+        problemStatement: desc,
+        category: category[0] || "Other",
+        skills: selectedSkills.join(", "),
+        teamSize: team,
+        visibility: visibility === "public",
+      };
+      const { data } = await groupsApi.createGroup(payload);
+      navigate(`/workspace?group=${data.data._id}`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create group.");
+    }
+  };
+
+  const initials = user?.fullName?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "?";
 
   return (
     <>
@@ -112,7 +142,7 @@ function CreateGroupPage() {
                 <div className="card-foot">
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <div className="avatar-stack">
-                      <div className="avatar av-a">DR</div>
+                      <div className="avatar av-a">{initials}</div>
                     </div>
                     <span className="seats">
                       1 member · {Math.max(0, team - 1)} seats open · needs {selectedSkills.join(", ") || "—"}
@@ -132,7 +162,7 @@ function CreateGroupPage() {
             >
               Back
             </button>
-            <button className="cta-btn" onClick={() => setStep((s) => Math.min(2, s + 1))}>
+            <button className="cta-btn" onClick={handleNext}>
               {nextLabel}
             </button>
           </div>
