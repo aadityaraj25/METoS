@@ -4,12 +4,16 @@ import { ApiResponse } from "../utils/apIResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { sendEmail } from "../utils/emailService.js";
 import jwt from "jsonwebtoken";
-// import redis from "../config/redis.js";
 
-const cookieOptions = {
+const BASE_COOKIE = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+    path: "/",
 };
+
+const accessCookieOptions = { ...BASE_COOKIE, maxAge: 15 * 60 * 1000 };           // 15 min
+const refreshCookieOptions = { ...BASE_COOKIE, maxAge: 7 * 24 * 60 * 60 * 1000 };  // 7 days
 
 const generateTokens = async (userId) => {
     try {
@@ -34,24 +38,30 @@ export const register = asyncHandler(async (req, res) => {
 
     const user = await User.create({ username, fullName, email, password });
 
-    // Add new username to Redis cache to keep it in sync (commented out)
-    // await redis.sadd("taken_usernames", username.toLowerCase());
-
     const created = await User.findById(user._id).select("-password -refreshToken");
     return res.status(201).json(new ApiResponse(201, created, "User registered successfully"));
 });
 
 export const login = asyncHandler(async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) throw new ApiError(400, "Email and password are required");
-    const user = await User.findOne({ email });
+    // Accept emailOrUsername, email, or username — all map to the same lookup
+    const identifier = (req.body.emailOrUsername || req.body.email || req.body.username || "").toLowerCase().trim();
+    const { password } = req.body;
+    if (!identifier || !password) throw new ApiError(400, "Email/username and password are required");
+
+    const user = await User.findOne({
+        $or: [
+            { email: identifier },
+            { username: identifier },
+        ],
+    });
     if (!user || !(await user.isPasswordCorrect(password))) throw new ApiError(401, "Invalid credentials");
+
     const { accessToken, refreshToken } = await generateTokens(user._id);
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken");
     return res
         .status(200)
-        .cookie("accessToken", accessToken, cookieOptions)
-        .cookie("refreshToken", refreshToken, cookieOptions)
+        .cookie("accessToken", accessToken, accessCookieOptions)
+        .cookie("refreshToken", refreshToken, refreshCookieOptions)
         .json(new ApiResponse(200, { user: loggedInUser, accessToken, refreshToken }, "Login successful"));
 });
 
@@ -59,8 +69,8 @@ export const logout = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(req.user._id, { $unset: { refreshToken: 1 } }, { new: true });
     return res
         .status(200)
-        .clearCookie("accessToken", cookieOptions)
-        .clearCookie("refreshToken", cookieOptions)
+        .clearCookie("accessToken", BASE_COOKIE)
+        .clearCookie("refreshToken", BASE_COOKIE)
         .json(new ApiResponse(200, null, "Logged out successfully"));
 });
 
@@ -78,8 +88,8 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
     const { accessToken, refreshToken } = await generateTokens(user._id);
     return res
         .status(200)
-        .cookie("accessToken", accessToken, cookieOptions)
-        .cookie("refreshToken", refreshToken, cookieOptions)
+        .cookie("accessToken", accessToken, accessCookieOptions)
+        .cookie("refreshToken", refreshToken, refreshCookieOptions)
         .json(new ApiResponse(200, { accessToken, refreshToken }, "Access token refreshed"));
 });
 
@@ -164,7 +174,7 @@ export const checkUsernameAvailability = asyncHandler(async (req, res) => {
     const { username } = req.query;
     if (!username) throw new ApiError(400, "Username query parameter is required");
 
-    // Check MongoDB directly for username availability (Redis fallback)
+    // Check MongoDB directly for username availability
     const userExists = await User.exists({
         username: { $regex: new RegExp(`^${username}$`, "i") }
     });
