@@ -135,7 +135,7 @@ function ExplorePage() {
   return (
     <div className="explore-page">
       <TopNav />
-
+    
       <div className="stats-band">
         <div className="stats-copy">
           <h1>Find people. Solve real problems. Ship together.</h1>
