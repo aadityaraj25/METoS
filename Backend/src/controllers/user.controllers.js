@@ -40,19 +40,23 @@ export const searchUsers = asyncHandler(async (req, res) => {
 
     const [users, total] = await Promise.all([
         User.find(filter)
-            .select("username fullName profileImage headline location skills bio")
+            .select("username fullName profileImage headline location skills bio lastSeen")
             .skip((pageNum - 1) * limitNum)
             .limit(limitNum),
         User.countDocuments(filter),
     ]);
 
-    const usersWithOnline = users.map((u) => ({
-        ...u.toObject(),
-        isOnline: true,
-    }));
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    const now = Date.now();
 
     res.status(200).json(new ApiResponse(200, {
-        users: usersWithOnline,
+        users: users.map((u) => {
+            const obj = u.toObject();
+            obj.isOnline = obj.lastSeen
+                ? (now - new Date(obj.lastSeen).getTime()) < FIVE_MINUTES
+                : false;
+            return obj;
+        }),
         pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     }, "Users fetched"));
 });

@@ -85,6 +85,9 @@ const userSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    lastSeen: {
+      type: Date,
+    },
     refreshToken: {
       type: String,
     },

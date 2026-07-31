@@ -30,7 +30,8 @@ function ExplorePage() {
       projectsApi.getMyProjects().catch(() => ({ data: { data: [] } })),
       groupsApi.getMyGroups().catch(() => ({ data: { data: [] } })),
       connectionsApi.getConnections().catch(() => ({ data: { data: [] } })),
-    ]).then(([allGroupsRes, allUsersRes, myProjRes, myGrpRes, myConnRes]) => {
+      connectionsApi.getSent().catch(() => ({ data: { data: [] } })),
+    ]).then(([allGroupsRes, allUsersRes, myProjRes, myGrpRes, myConnRes, mySentRes]) => {
       const g = allGroupsRes.data?.data?.groups || [];
       const u = allUsersRes.data?.data?.users || [];
       const mGroups = myGrpRes.data?.data || [];
@@ -44,6 +45,7 @@ function ExplorePage() {
       });
 
       const mConnIds = mConn.map(c => c.user?._id || c._id);
+      const mSentIds = (mySentRes.data?.data || []).map(c => c.receiver?._id || c.receiver);
       const mGroupIds = mGroups.map(g => g._id);
 
       const items = [];
@@ -55,8 +57,9 @@ function ExplorePage() {
       });
       u.filter(x => x._id !== user._id).forEach(usr => {
         const isConnected = mConnIds.includes(usr._id);
-        if (!isConnected || q) {
-          items.push({ kind: "person", data: usr, isConnected });
+        const isSent = mSentIds.includes(usr._id);
+        if (!isConnected && !isSent || q) {
+          items.push({ kind: "person", data: usr, isConnected, isSent });
         }
       });
 
@@ -82,6 +85,7 @@ function ExplorePage() {
     try {
       await connectionsApi.sendRequest(userId);
       setReqStatus(p => ({ ...p, [userId]: "Sent" }));
+      setFeed(f => f.filter(item => item.data._id !== userId || q));
       toast.success("Connection request sent");
     } catch {
       setReqStatus(p => ({ ...p, [userId]: "Failed" }));
@@ -93,6 +97,7 @@ function ExplorePage() {
     try {
       await joinRequestsApi.create(groupId);
       setReqStatus(p => ({ ...p, [groupId]: "Requested" }));
+      setFeed(f => f.filter(item => item.data._id !== groupId || q));
       toast.success("Join request sent");
     } catch (err) {
       setReqStatus(p => ({ ...p, [groupId]: "Failed" }));
@@ -113,7 +118,12 @@ function ExplorePage() {
   const handleRemoveConnection = async (userId) => {
     try {
       await connectionsApi.remove(userId);
-      setFeed(f => f.map(item => item.data._id === userId ? { ...item, isConnected: false } : item).filter(item => item.data._id !== userId || q));
+      setReqStatus(p => {
+        const next = { ...p };
+        delete next[userId];
+        return next;
+      });
+      setFeed(f => f.map(item => item.data._id === userId ? { ...item, isConnected: false, isSent: false } : item).filter(item => item.data._id !== userId || q));
       toast.success("Connection removed");
     } catch (err) {
       toast.error("Failed to remove connection");
@@ -295,8 +305,9 @@ function ExplorePage() {
               } else {
                 const u = item.data;
                 const isConnected = item.isConnected;
+                const isSent = item.isSent;
                 const ini = u.fullName?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "?";
-                const btnLabel = isConnected ? "Remove" : (reqStatus[u._id] || "Connect");
+                const btnLabel = isConnected ? "Remove" : (reqStatus[u._id] || (isSent ? "Sent" : "Connect"));
                 return (
                   <div
                     key={i}
@@ -333,7 +344,7 @@ function ExplorePage() {
                           e.stopPropagation();
                           isConnected ? handleRemoveConnection(u._id) : handleConnect(u._id);
                         }}
-                        disabled={!isConnected && !!reqStatus[u._id]}
+                        disabled={(!isConnected && !!reqStatus[u._id]) || isSent}
                       >
                         {btnLabel}
                       </button>

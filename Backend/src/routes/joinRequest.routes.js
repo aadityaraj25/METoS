@@ -2,6 +2,7 @@ import express from "express";
 import {
     createJoinRequest,
     getGroupJoinRequests,
+    getMyPendingJoinRequests,
     acceptJoinRequest,
     rejectJoinRequest,
 } from "../controllers/joinRequest.controllers.js";
@@ -13,6 +14,9 @@ router.use(verifyJWT);
 
 // POST /api/v1/join-requests/:groupId - User requests to join a group
 router.post("/:groupId", createJoinRequest);
+
+// GET /api/v1/join-requests/me/pending - Leader views all pending join requests across their groups
+router.get("/me/pending", getMyPendingJoinRequests);
 
 // GET /api/v1/join-requests/group/:groupId - Leader views pending requests for a group
 router.get("/group/:groupId", getGroupJoinRequests);

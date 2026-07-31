@@ -3,16 +3,20 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import toast from "react-hot-toast";
 import * as invitesApi from "../api/invites.js";
+import * as joinRequestsApi from "../api/joinRequests.js";
 import * as connectionsApi from "../api/connections.js";
 import * as authApi from "../api/auth.js";
+import { useSocket } from "../context/SocketContext.jsx";
 
 export default function TopNav() {
   const navigate = useNavigate();
   const { user, logout: ctxLogout } = useAuth();
+  const socket = useSocket();
   const [menuOpen, setMenuOpen] = useState(false);
   const [invitesOpen, setInvitesOpen] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [pendingInvites, setPendingInvites] = useState([]);
+  const [pendingJoinRequests, setPendingJoinRequests] = useState([]);
   const [pendingConnections, setPendingConnections] = useState([]);
   const menuRef = useRef(null);
   const invitesRef = useRef(null);
@@ -24,9 +28,11 @@ export default function TopNav() {
     if (!user) return;
     Promise.all([
       invitesApi.getPendingInvites().catch(() => ({ data: { data: [] } })),
+      joinRequestsApi.getMyPending().catch(() => ({ data: { data: [] } })),
       connectionsApi.getPending().catch(() => ({ data: { data: [] } }))
-    ]).then(([invRes, connRes]) => {
+    ]).then(([invRes, joinRes, connRes]) => {
       setPendingInvites(invRes.data?.data ?? []);
+      setPendingJoinRequests(joinRes.data?.data ?? []);
       setPendingConnections(connRes.data?.data ?? []);
     });
   };
@@ -35,8 +41,24 @@ export default function TopNav() {
     fetchPending();
 
     window.addEventListener("connectionUpdated", fetchPending);
-    return () => window.removeEventListener("connectionUpdated", fetchPending);
-  }, [user]);
+
+    if (socket) {
+      const handleNewNotification = (data) => {
+        fetchPending();
+        window.dispatchEvent(new Event("connectionUpdated"));
+      };
+      socket.on("new_notification", handleNewNotification);
+
+      return () => {
+        window.removeEventListener("connectionUpdated", fetchPending);
+        socket.off("new_notification", handleNewNotification);
+      };
+    }
+
+    return () => {
+      window.removeEventListener("connectionUpdated", fetchPending);
+    };
+  }, [user, socket]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -69,6 +91,7 @@ export default function TopNav() {
       const { data } = await invitesApi.acceptInvite({ token });
       setPendingInvites((prev) => prev.filter((inv) => inv.token !== token));
       setInvitesOpen(false);
+      window.dispatchEvent(new Event("connectionUpdated"));
       if (data.data?.groupId) {
         navigate(`/workspace?group=${data.data.groupId}`);
       }
@@ -82,6 +105,7 @@ export default function TopNav() {
     try {
       await invitesApi.rejectInvite({ token });
       setPendingInvites((prev) => prev.filter((inv) => inv.token !== token));
+      window.dispatchEvent(new Event("connectionUpdated"));
       toast.success("Invite rejected");
     } catch (err) {
       toast.error("Failed to reject invite");
@@ -92,6 +116,7 @@ export default function TopNav() {
     try {
       await connectionsApi.accept(connId);
       setPendingConnections((prev) => prev.filter((c) => c._id !== connId));
+      window.dispatchEvent(new Event("connectionUpdated"));
       toast.success("Connection request accepted");
     } catch (err) {
       toast.error("Failed to accept connection");
@@ -102,11 +127,39 @@ export default function TopNav() {
     try {
       await connectionsApi.reject(connId);
       setPendingConnections((prev) => prev.filter((c) => c._id !== connId));
+      window.dispatchEvent(new Event("connectionUpdated"));
       toast.success("Connection request rejected");
     } catch (err) {
       toast.error("Failed to reject connection");
     }
   };
+
+  const handleAcceptJoinRequest = async (reqId) => {
+    try {
+      await joinRequestsApi.accept(reqId);
+      setPendingJoinRequests((prev) => prev.filter((r) => r._id !== reqId));
+      window.dispatchEvent(new Event("connectionUpdated"));
+      toast.success("User added to group");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to accept join request");
+    }
+  };
+
+  const handleRejectJoinRequest = async (reqId) => {
+    try {
+      await joinRequestsApi.reject(reqId);
+      setPendingJoinRequests((prev) => prev.filter((r) => r._id !== reqId));
+      window.dispatchEvent(new Event("connectionUpdated"));
+      toast.success("Join request rejected");
+    } catch (err) {
+      toast.error("Failed to reject join request");
+    }
+  };
+
+  const notifications = [
+    ...pendingInvites.map(inv => ({ type: 'invite', data: inv, id: inv._id })),
+    ...pendingJoinRequests.map(req => ({ type: 'join_request', data: req, id: req._id }))
+  ];
 
   const initials = user?.fullName
     ?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() ?? "?";
@@ -211,7 +264,7 @@ export default function TopNav() {
               <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
               <path d="M13.7 21a2 2 0 01-3.4 0" />
             </svg>
-            {pendingInvites.length > 0 && (
+            {notifications.length > 0 && (
               <span style={{
                 position: "absolute", top: -2, right: -2,
                 background: "#E2A63B", color: "#161B2C",
@@ -219,7 +272,7 @@ export default function TopNav() {
                 width: 16, height: 16, borderRadius: "50%",
                 display: "flex", alignItems: "center", justifyContent: "center"
               }}>
-                {pendingInvites.length}
+                {notifications.length}
               </span>
             )}
           </button>
@@ -237,22 +290,39 @@ export default function TopNav() {
               background: "#FFFFFF", border: "1px solid #D7DCE6", borderBottom: "none", borderRight: "none", transform: "rotate(45deg)",
             }} />
             <div style={{ padding: "12px 16px", borderBottom: "1px solid #EEF1F6", fontWeight: 600, fontSize: 13, color: "#161B2C" }}>
-              Pending Invites
+              Notifications
             </div>
             <div style={{ maxHeight: 300, overflowY: "auto", padding: 8 }}>
-              {pendingInvites.length === 0 ? (
-                <div style={{ padding: 16, textAlign: "center", color: "#5B6478", fontSize: 13 }}>No pending invites.</div>
+              {notifications.length === 0 ? (
+                <div style={{ padding: 16, textAlign: "center", color: "#5B6478", fontSize: 13 }}>No new notifications.</div>
               ) : (
-                pendingInvites.map((inv) => (
-                  <div key={inv._id} style={{ padding: 12, background: "#EEF1F6", borderRadius: 8, marginBottom: 8 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#161B2C", marginBottom: 2 }}>{inv.group?.teamName || "A Group"}</div>
-                    <div style={{ fontSize: 12, color: "#5B6478", marginBottom: 8 }}>Invited by {inv.invitedBy?.fullName}</div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={() => handleAcceptInvite(inv.token)} style={{ flex: 1, padding: "6px 0", background: "#1E9C86", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Accept</button>
-                      <button onClick={() => handleRejectInvite(inv.token)} style={{ flex: 1, padding: "6px 0", background: "transparent", color: "#5B6478", border: "1px solid #D7DCE6", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Reject</button>
-                    </div>
-                  </div>
-                ))
+                notifications.map((notif) => {
+                  if (notif.type === "invite") {
+                    const inv = notif.data;
+                    return (
+                      <div key={`inv_${inv._id}`} style={{ padding: 12, background: "#EEF1F6", borderRadius: 8, marginBottom: 8 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#161B2C", marginBottom: 2 }}>{inv.group?.teamName || "A Group"}</div>
+                        <div style={{ fontSize: 12, color: "#5B6478", marginBottom: 8 }}>Invited by {inv.invitedBy?.fullName}</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => handleAcceptInvite(inv.token)} style={{ flex: 1, padding: "6px 0", background: "#1E9C86", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Accept</button>
+                          <button onClick={() => handleRejectInvite(inv.token)} style={{ flex: 1, padding: "6px 0", background: "transparent", color: "#5B6478", border: "1px solid #D7DCE6", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Reject</button>
+                        </div>
+                      </div>
+                    );
+                  } else {
+                    const req = notif.data;
+                    return (
+                      <div key={`req_${req._id}`} style={{ padding: 12, background: "#EEF1F6", borderRadius: 8, marginBottom: 8 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#161B2C", marginBottom: 2 }}>{req.user?.fullName}</div>
+                        <div style={{ fontSize: 12, color: "#5B6478", marginBottom: 8 }}>Wants to join {req.group?.teamName}</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => handleAcceptJoinRequest(req._id)} style={{ flex: 1, padding: "6px 0", background: "#1E9C86", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Accept</button>
+                          <button onClick={() => handleRejectJoinRequest(req._id)} style={{ flex: 1, padding: "6px 0", background: "transparent", color: "#5B6478", border: "1px solid #D7DCE6", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Reject</button>
+                        </div>
+                      </div>
+                    );
+                  }
+                })
               )}
             </div>
           </div>

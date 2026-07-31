@@ -1,4 +1,5 @@
 import { Connection } from "../models/connections.models.js";
+import { getIo, getReceiverSocketId } from "../sockets/socket.js";
 import { User } from "../models/user.models.js";
 import { ApiError } from "../utils/apiErrors.js";
 import { ApiResponse } from "../utils/apIResponse.js";
@@ -34,6 +35,11 @@ export const sendConnectionRequest = asyncHandler(async (req, res) => {
         connectionId: connection._id,
         receiver: { _id: receiver._id, fullName: receiver.fullName, username: receiver.username },
     }, `Request sent to ${receiver.fullName}`));
+
+    const receiverSocketId = getReceiverSocketId(receiverId.toString());
+    if (receiverSocketId) {
+        getIo().to(receiverSocketId).emit("new_notification", { type: "connection_request" });
+    }
 });
 
 export const acceptConnectionRequest = asyncHandler(async (req, res) => {

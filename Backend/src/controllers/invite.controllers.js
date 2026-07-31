@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { getIo, getReceiverSocketId } from "../sockets/socket.js";
 import { Group } from "../models/group.models.js";
 import { Invite } from "../models/invite.models.js";
 import { User } from "../models/user.models.js";
@@ -58,6 +59,11 @@ export const sendInvite = asyncHandler(async (req, res) => {
         console.error("Failed to send invite email:", err.message);
         // We do not delete the invite, so the invitee can still accept it in-app.
         res.status(201).json(new ApiResponse(201, { inviteId: invite._id }, "Invite created successfully (email skipped)"));
+    }
+
+    const receiverSocketId = getReceiverSocketId(invitee._id.toString());
+    if (receiverSocketId) {
+        getIo().to(receiverSocketId).emit("new_notification", { type: "invite" });
     }
 });
 

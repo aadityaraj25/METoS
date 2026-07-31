@@ -1,4 +1,5 @@
 import { JoinRequest } from "../models/joinRequest.models.js";
+import { getIo, getReceiverSocketId } from "../sockets/socket.js";
 import { Group } from "../models/group.models.js";
 import { User } from "../models/user.models.js";
 import { Invite } from "../models/invite.models.js";
@@ -24,6 +25,11 @@ export const createJoinRequest = asyncHandler(async (req, res) => {
     const joinReq = await JoinRequest.create({ user: userId, group: groupId, status: "PENDING" });
 
     res.status(201).json(new ApiResponse(201, { requestId: joinReq._id }, "Request to join sent successfully"));
+
+    const leaderSocketId = getReceiverSocketId(group.leader.toString());
+    if (leaderSocketId) {
+        getIo().to(leaderSocketId).emit("new_notification", { type: "join_request" });
+    }
 });
 
 export const getGroupJoinRequests = asyncHandler(async (req, res) => {
@@ -37,6 +43,21 @@ export const getGroupJoinRequests = asyncHandler(async (req, res) => {
     const requests = await JoinRequest.find({ group: groupId, status: "PENDING" }).populate("user", "fullName username email headline profileImage");
 
     res.status(200).json(new ApiResponse(200, requests, "Join requests fetched successfully"));
+});
+
+export const getMyPendingJoinRequests = asyncHandler(async (req, res) => {
+    const leaderId = req.user._id;
+    
+    // Find all groups led by the current user
+    const groups = await Group.find({ leader: leaderId }).select('_id');
+    const groupIds = groups.map(g => g._id);
+
+    // Find all pending join requests for those groups
+    const requests = await JoinRequest.find({ group: { $in: groupIds }, status: "PENDING" })
+        .populate("user", "fullName username email headline profileImage")
+        .populate("group", "teamName");
+
+    res.status(200).json(new ApiResponse(200, requests, "Pending join requests fetched successfully"));
 });
 
 export const acceptJoinRequest = asyncHandler(async (req, res) => {

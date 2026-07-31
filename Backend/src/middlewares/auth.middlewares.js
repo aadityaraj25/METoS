@@ -32,6 +32,10 @@ const verifyJWT = async (req, res, next) => {
         }
 
         req.user = user;
+
+        // Fire-and-forget — update lastSeen without blocking the request
+        User.updateOne({ _id: userId }, { lastSeen: new Date() }).exec();
+
         next();
     } catch {
         return res.status(401).json({ success: false, message: "Invalid or expired token" });
