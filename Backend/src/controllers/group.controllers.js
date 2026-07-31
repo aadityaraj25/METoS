@@ -16,6 +16,7 @@ export const createGroup = asyncHandler(async (req, res) => {
     const group = await Group.create({
         teamName, problemId, problemStatement, category, skills, teamSize, visibility,
         leader: req.user._id,
+        teamMembers: [req.user._id],
         status: "OPEN",
     });
 
@@ -44,7 +45,7 @@ export const listGroups = asyncHandler(async (req, res) => {
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit)));
 
-    const filter = {};
+    const filter = { visibility: true };
     if (status) filter.status = status.toUpperCase();
     if (category) filter.category = { $regex: category, $options: "i" };
     if (skills) filter.skills = { $regex: skills, $options: "i" };
@@ -57,6 +58,7 @@ export const listGroups = asyncHandler(async (req, res) => {
     const [groups, total] = await Promise.all([
         Group.find(filter)
             .populate("leader", "fullName username email profileImage")
+            .populate("teamMembers", "fullName username email profileImage")
             .sort({ createdAt: -1 })
             .skip((pageNum - 1) * limitNum)
             .limit(limitNum),

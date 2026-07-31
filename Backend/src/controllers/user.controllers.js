@@ -27,28 +27,32 @@ export const getUserById = asyncHandler(async (req, res) => {
 
 export const searchUsers = asyncHandler(async (req, res) => {
     const { q, page = 1, limit = 20 } = req.query;
-    if (!q) throw new ApiError(400, "Search query is required");
 
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit)));
 
-    const filter = {
+    const filter = q ? {
         $or: [
             { username: { $regex: q, $options: "i" } },
             { fullName: { $regex: q, $options: "i" } },
         ],
-    };
+    } : {};
 
     const [users, total] = await Promise.all([
         User.find(filter)
-            .select("username fullName profileImage headline location skills")
+            .select("username fullName profileImage headline location skills bio")
             .skip((pageNum - 1) * limitNum)
             .limit(limitNum),
         User.countDocuments(filter),
     ]);
 
+    const usersWithOnline = users.map((u) => ({
+        ...u.toObject(),
+        isOnline: true,
+    }));
+
     res.status(200).json(new ApiResponse(200, {
-        users,
+        users: usersWithOnline,
         pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
     }, "Users fetched"));
 });

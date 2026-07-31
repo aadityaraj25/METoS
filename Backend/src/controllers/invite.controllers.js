@@ -53,12 +53,12 @@ export const sendInvite = asyncHandler(async (req, res) => {
             groupName: group.teamName,
             inviteLink,
         });
-    } catch {
-        await Invite.findByIdAndDelete(invite._id);
-        throw new ApiError(500, "Failed to send invite email. Please try again.");
+        res.status(201).json(new ApiResponse(201, { inviteId: invite._id }, "Invite sent successfully"));
+    } catch (err) {
+        console.error("Failed to send invite email:", err.message);
+        // We do not delete the invite, so the invitee can still accept it in-app.
+        res.status(201).json(new ApiResponse(201, { inviteId: invite._id }, "Invite created successfully (email skipped)"));
     }
-
-    res.status(201).json(new ApiResponse(201, { inviteId: invite._id }, "Invite sent successfully"));
 });
 
 export const acceptInvite = asyncHandler(async (req, res) => {
@@ -93,7 +93,13 @@ export const acceptInvite = asyncHandler(async (req, res) => {
     if (isAlreadyMember) throw new ApiError(400, "You are already a member of this group");
 
     group.teamMembers.push(userId);
-    if (group.teamMembers.length >= group.teamSize) group.status = "CLOSED";
+    if (group.teamMembers.length >= group.teamSize) {
+        group.status = "CLOSED";
+        await Invite.updateMany(
+            { group: group._id, status: "PENDING", _id: { $ne: invite._id } },
+            { $set: { status: "REJECTED" } }
+        );
+    }
     await group.save();
 
     invite.status = "ACCEPTED";
