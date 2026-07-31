@@ -98,8 +98,19 @@ export const getMe = asyncHandler(async (req, res) => {
 });
 
 export const updateProfile = asyncHandler(async (req, res) => {
-    const { fullName, headline, bio, location, socialLinks, skills } = req.body;
+    const { fullName, headline, bio, location, socialLinks, skills, username } = req.body;
     const updateData = {};
+    
+    if (username) {
+        const usernameStr = username.trim();
+        const existing = await User.findOne({ 
+            username: { $regex: new RegExp(`^${usernameStr}$`, "i") },
+            _id: { $ne: req.user._id }
+        });
+        if (existing) throw new ApiError(409, "Username is already taken");
+        updateData.username = usernameStr;
+    }
+
     if (fullName) updateData.fullName = fullName;
     if (headline !== undefined) updateData.headline = headline;
     if (bio !== undefined) updateData.bio = bio;

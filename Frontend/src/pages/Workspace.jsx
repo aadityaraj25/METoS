@@ -25,6 +25,10 @@ function WorkspacePage() {
   const [newMessage, setNewMessage] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
 
+  const [isEditingMode, setIsEditingMode] = useState(false);
+  const [editFormData, setEditFormData] = useState({});
+  const [modalConfig, setModalConfig] = useState(null);
+
   useEffect(() => {
     if (!groupId) {
       groupsApi.getMyGroups()
@@ -58,35 +62,95 @@ function WorkspacePage() {
     }
   }, [groupId, isMember, isLeader]);
 
-  const handleInvite = async () => {
-    const email = prompt("Enter the email of the person you want to invite:");
-    if (!email) return;
-    try {
-      await invitesApi.sendInvite(groupId, { email });
-      toast.success("Invite sent successfully!");
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to send invite.");
-    }
+  const handleInvite = () => {
+    setModalConfig({
+      type: "prompt",
+      title: "Invite Teammate",
+      placeholder: "Enter email or username...",
+      confirmText: "Send Invite",
+      onConfirm: async (identifier) => {
+        try {
+          await invitesApi.sendInvite(groupId, { identifier });
+          toast.success("Invite sent successfully!");
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Failed to send invite.");
+        }
+      }
+    });
   };
 
-  const handleCloseGroup = async () => {
-    if (!window.confirm("Are you sure you want to close this group?")) return;
-    try {
-      await groupsApi.closeGroup(groupId);
-      setGroup({ ...group, status: "CLOSED" });
-      toast.success("Group closed.");
-    } catch (err) {
-      toast.error("Failed to close group.");
-    }
+  const handleCloseGroup = () => {
+    setModalConfig({
+      type: "confirm",
+      title: "Close Group",
+      description: "Are you sure you want to close this group? This action will mark it as closed and reject all pending join requests.",
+      confirmText: "Close Group",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await groupsApi.closeGroup(groupId);
+          setGroup({ ...group, status: "CLOSED" });
+          toast.success("Group closed.");
+        } catch (err) {
+          toast.error("Failed to close group.");
+        }
+      }
+    });
   };
 
-  const handleLeaveGroup = async () => {
-    if (!window.confirm("Are you sure you want to leave this group?")) return;
+  const handleLeaveGroup = () => {
+    setModalConfig({
+      type: "confirm",
+      title: "Leave Group",
+      description: "Are you sure you want to leave this group? You will lose access to the workspace.",
+      confirmText: "Leave",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await groupsApi.leaveGroup(groupId);
+          navigate("/dashboard");
+        } catch (err) {
+          toast.error("Failed to leave group.");
+        }
+      }
+    });
+  };
+
+  const handleRemoveUser = (userId) => {
+    setModalConfig({
+      type: "confirm",
+      title: "Remove User",
+      description: "Are you sure you want to remove this user from the group? They will lose access to this workspace.",
+      confirmText: "Remove",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await groupsApi.removeUser(groupId, userId);
+          setGroup(prev => ({ ...prev, teamMembers: prev.teamMembers.filter(m => m._id !== userId) }));
+          toast.success("User removed.");
+        } catch (err) {
+          toast.error(err.response?.data?.message || "Failed to remove user.");
+        }
+      }
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    const minMembers = group.teamMembers?.length || 1;
+    if (editFormData.teamSize !== undefined && editFormData.teamSize !== "") {
+      if (editFormData.teamSize < minMembers) {
+        toast.error(`Team size cannot be less than current member count (${minMembers}).`);
+        return;
+      }
+    }
+
     try {
-      await groupsApi.leaveGroup(groupId);
-      navigate("/dashboard");
+      const { data } = await groupsApi.updateGroup(groupId, editFormData);
+      setGroup(data.data);
+      setIsEditingMode(false);
+      toast.success("Group info updated.");
     } catch (err) {
-      toast.error("Failed to leave group.");
+      toast.error(err.response?.data?.message || "Failed to update group.");
     }
   };
 
@@ -178,7 +242,7 @@ function WorkspacePage() {
       <div className="ws-hero">
         <div className="ws-header-card">
           <div className="ws-header-top">
-            <div>
+            <div style={{ flex: 1, minWidth: 0, paddingRight: 20 }}>
               <span className="card-tag" style={{ background: "rgba(226,166,59,0.14)", color: "#8A611C" }}>
                 {group.category?.toUpperCase() || "GENERAL"}
               </span>
@@ -187,10 +251,32 @@ function WorkspacePage() {
                   CLOSED
                 </span>
               )}
-              <h1>{group.teamName}</h1>
-              <p className="stmt">{group.problemStatement}</p>
+              
+              {isEditingMode ? (
+                <div style={{ marginTop: 12 }}>
+                  <input type="text" value={editFormData.teamName || ""} onChange={(e) => setEditFormData({ ...editFormData, teamName: e.target.value })} style={{ boxSizing: "border-box", padding: "8px 12px", fontSize: 18, fontWeight: 600, fontFamily: "var(--font-display)", width: "100%", border: "1px solid #D7DCE6", borderRadius: 8, marginBottom: 12, color: "#161B2C", outline: "none" }} />
+                  <textarea value={editFormData.problemStatement || ""} onChange={(e) => setEditFormData({ ...editFormData, problemStatement: e.target.value })} style={{ boxSizing: "border-box", padding: "12px", fontSize: 14, lineHeight: 1.6, width: "100%", border: "1px solid #D7DCE6", borderRadius: 8, marginBottom: 12, minHeight: 90, fontFamily: "inherit", color: "#5B6478", outline: "none", resize: "vertical" }} />
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#5B6478", marginBottom: 6 }}>Max Team Size</label>
+                  <input type="number" min={group.teamMembers?.length || 1} value={editFormData.teamSize !== undefined ? editFormData.teamSize : (group.teamSize || "")} onChange={(e) => {
+                    const val = e.target.value;
+                    setEditFormData({ ...editFormData, teamSize: val === "" ? "" : parseInt(val) });
+                  }} style={{ boxSizing: "border-box", padding: "8px 12px", fontSize: 14, width: "120px", border: "1px solid #D7DCE6", borderRadius: 8, marginBottom: 16, color: "#161B2C", outline: "none" }} />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="cta-btn" onClick={handleSaveEdit}>Save Changes</button>
+                    <button className="cta-btn outline" onClick={() => setIsEditingMode(false)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h1 style={{ marginTop: 12, marginBottom: 8 }}>{group.teamName}</h1>
+                  <p className="stmt">{group.problemStatement}</p>
+                </>
+              )}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
+              {isLeader && !isEditingMode && group.status !== "CLOSED" && (
+                <button className="cta-btn outline" onClick={() => { setEditFormData({ teamName: group.teamName, problemStatement: group.problemStatement, teamSize: group.teamSize }); setIsEditingMode(true); }}>Edit Group</button>
+              )}
               {isLeader && group.status !== "CLOSED" && (
                 <button className="cta-btn outline" onClick={handleInvite}>Invite teammate</button>
               )}
@@ -306,12 +392,17 @@ function WorkspacePage() {
             const isLead = group.leader?._id === m._id;
             const colors = ["av-c", "av-b", "av-d", "av-a"];
             return (
-              <div className="roster-item" key={m._id}>
-                <div className={`avatar ${colors[i % colors.length]}`}>{ini}</div>
-                <div className="roster-info">
-                  <h6>{m.fullName}</h6>
-                  <p>{isLead ? "Lead" : "Member"}{m.headline ? ` · ${m.headline}` : ""}</p>
+              <div className="roster-item" key={m._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div className={`avatar ${colors[i % colors.length]}`}>{ini}</div>
+                  <div className="roster-info">
+                    <h6>{m.fullName}</h6>
+                    <p>{isLead ? "Lead" : "Member"}{m.headline ? ` · ${m.headline}` : ""}</p>
+                  </div>
                 </div>
+                {isLeader && !isLead && (
+                  <button onClick={() => handleRemoveUser(m._id)} style={{ background: "transparent", color: "#c0392b", border: "1px solid #ffcccc", padding: "4px 8px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Remove</button>
+                )}
               </div>
             );
           })}
@@ -341,6 +432,57 @@ function WorkspacePage() {
           )}
         </aside>
       </div>
+
+      {modalConfig && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(10, 15, 30, 0.6)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(4px)" }} onClick={() => setModalConfig(null)}>
+          <div style={{ background: "#fff", padding: 32, borderRadius: 16, width: "100%", maxWidth: 420, boxShadow: "0 24px 48px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: 20, color: "#161B2C", marginBottom: 12 }}>{modalConfig.title}</h3>
+            {modalConfig.type === "prompt" && (
+              <input 
+                autoFocus
+                type="text" 
+                placeholder={modalConfig.placeholder} 
+                style={{ width: "100%", padding: "12px 16px", borderRadius: 8, border: "1px solid #D7DCE6", fontSize: 15, boxSizing: "border-box", outline: "none", marginBottom: 24, color: "#161B2C" }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.target.value.trim()) {
+                    modalConfig.onConfirm(e.target.value.trim());
+                    setModalConfig(null);
+                  }
+                }}
+                id="modal-prompt-input"
+              />
+            )}
+            {modalConfig.type === "confirm" && (
+              <p style={{ color: "#5B6478", fontSize: 15, marginBottom: 24, lineHeight: 1.5 }}>{modalConfig.description}</p>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+              <button 
+                className="cta-btn outline" 
+                onClick={() => setModalConfig(null)}
+                style={{ borderColor: "#D7DCE6", color: "#5B6478" }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="cta-btn" 
+                onClick={() => {
+                  if (modalConfig.type === "prompt") {
+                    const val = document.getElementById("modal-prompt-input")?.value?.trim();
+                    if (!val) return;
+                    modalConfig.onConfirm(val);
+                  } else {
+                    modalConfig.onConfirm();
+                  }
+                  setModalConfig(null);
+                }}
+                style={modalConfig.danger ? { background: "#c0392b", color: "#fff", border: "none" } : {}}
+              >
+                {modalConfig.confirmText || "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

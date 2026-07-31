@@ -8,6 +8,7 @@ import {
     closeGroup,
     deleteGroup,
     leaveGroup,
+    removeUser,
 } from "../controllers/group.controllers.js";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
 
@@ -39,6 +40,9 @@ router.patch("/:groupId/close", verifyJWT, closeGroup);
 
 // DELETE /api/v1/groups/:groupId/leave — leave a group (member only)
 router.delete("/:groupId/leave", verifyJWT, leaveGroup);
+
+// DELETE /api/v1/groups/:groupId/remove/:userId - leader removes member
+router.delete("/:groupId/remove/:userId", verifyJWT, removeUser);
 
 // DELETE /api/v1/groups/:groupId       — delete group entirely (leader only)
 router.delete("/:groupId", verifyJWT, deleteGroup);

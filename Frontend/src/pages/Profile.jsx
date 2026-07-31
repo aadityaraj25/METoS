@@ -55,6 +55,10 @@ function ProfilePage() {
   const [isAddingSkill, setIsAddingSkill] = useState(false);
   const [skillForm, setSkillForm] = useState({ name: "", proficiency: 3 });
 
+  const [usernameError, setUsernameError] = useState("");
+  const [usernameAvailable, setUsernameAvailable] = useState(true);
+  const [checkingUsername, setCheckingUsername] = useState(false);
+
   const isOwnProfile = !userId || userId === user?._id;
 
   useEffect(() => {
@@ -88,9 +92,46 @@ function ProfilePage() {
     }
   }, [user, userId, isOwnProfile]);
 
+  useEffect(() => {
+    if (!isEditing || editForm.username === undefined) return;
+    
+    if (editForm.username === user?.username) {
+      setUsernameError("");
+      setUsernameAvailable(true);
+      return;
+    }
+    
+    const checkUser = async () => {
+      if (editForm.username.trim().length < 3) {
+        setUsernameError("Username must be at least 3 characters");
+        setUsernameAvailable(false);
+        return;
+      }
+      setCheckingUsername(true);
+      try {
+        const { data } = await authApi.checkUsername(editForm.username);
+        if (data.data.available) {
+          setUsernameError("");
+          setUsernameAvailable(true);
+        } else {
+          setUsernameError("Username is already taken");
+          setUsernameAvailable(false);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setCheckingUsername(false);
+      }
+    };
+    
+    const to = setTimeout(checkUser, 500);
+    return () => clearTimeout(to);
+  }, [editForm.username, isEditing, user?.username]);
+
   const handleEditToggle = () => {
     if (!isEditing) {
       setEditForm({
+        username: user?.username || "",
         fullName: user?.fullName || "",
         headline: user?.headline || "",
         bio: user?.bio || "",
@@ -107,6 +148,10 @@ function ProfilePage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (!usernameAvailable) {
+      toast.error("Please fix the errors before saving");
+      return;
+    }
     setLoading(true);
     try {
       const parsedSkills = editForm.skills
@@ -116,6 +161,7 @@ function ProfilePage() {
         .map(s => ({ name: s, proficiency: 3 }));
 
       const { data } = await authApi.updateProfile({
+        username: editForm.username !== user?.username ? editForm.username : undefined,
         fullName: editForm.fullName,
         headline: editForm.headline,
         bio: editForm.bio,
@@ -202,9 +248,18 @@ function ProfilePage() {
               <h2 style={{ marginBottom: 16 }}>Edit Profile</h2>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <div>
+                  <label style={{ display: "block", fontSize: 12, color: "#5B6478", marginBottom: 4 }}>Username</label>
+                  <input type="text" value={editForm.username} onChange={e => setEditForm({ ...editForm, username: e.target.value })} style={{ width: "100%", padding: 8, border: `1px solid ${usernameError ? "#ef4444" : "#ccc"}`, borderRadius: 4 }} />
+                  {checkingUsername && <div style={{ fontSize: 11, color: "#2E5EAA", marginTop: 4 }}>Checking availability...</div>}
+                  {usernameError && <div style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>{usernameError}</div>}
+                  {!usernameError && editForm.username !== user?.username && usernameAvailable && <div style={{ fontSize: 11, color: "#10b981", marginTop: 4 }}>Username is available!</div>}
+                </div>
+                <div>
                   <label style={{ display: "block", fontSize: 12, color: "#5B6478", marginBottom: 4 }}>Full Name</label>
                   <input type="text" value={editForm.fullName} onChange={e => setEditForm({ ...editForm, fullName: e.target.value })} style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 4 }} />
                 </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <div>
                   <label style={{ display: "block", fontSize: 12, color: "#5B6478", marginBottom: 4 }}>Location</label>
                   <input type="text" value={editForm.location} onChange={e => setEditForm({ ...editForm, location: e.target.value })} style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 4 }} />
@@ -253,7 +308,8 @@ function ProfilePage() {
             <>
               <div className="avatar av-a avatar-xl">{initials}</div>
               <div className="profile-header-info">
-                <h1 style={{ marginBottom: 4 }}>{profileUser?.fullName || "User Name"}</h1>
+                <h1 style={{ marginBottom: 2 }}>{profileUser?.fullName || "User Name"}</h1>
+                <div style={{ fontSize: 14, color: "#5B6478", marginBottom: 6 }}>@{profileUser?.username}</div>
                 <div className="role-line">{profileUser?.headline || "No headline"} · {profileUser?.location || "Unknown"}</div>
                 <p className="bio">{profileUser?.bio || "No bio available."}</p>
 

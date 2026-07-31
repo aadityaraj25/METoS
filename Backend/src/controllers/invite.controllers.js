@@ -10,10 +10,11 @@ import asyncHandler from "../utils/asyncHandler.js";
 
 export const sendInvite = asyncHandler(async (req, res) => {
     const { groupId } = req.params;
-    const { email } = req.body;
+    const { email, identifier } = req.body;
+    const target = identifier || email;
     const leaderId = req.user._id;
 
-    if (!email) throw new ApiError(400, "Email is required");
+    if (!target) throw new ApiError(400, "Email or username is required");
 
     const group = await Group.findById(groupId);
     if (!group) throw new ApiError(404, "Group not found");
@@ -21,8 +22,14 @@ export const sendInvite = asyncHandler(async (req, res) => {
     if (group.leader.toString() !== leaderId.toString()) throw new ApiError(403, "Only the group leader can send invites");
     if (group.teamMembers.length >= group.teamSize) throw new ApiError(400, "Group is already full");
 
-    const invitee = await User.findOne({ email: email.toLowerCase().trim() });
-    if (!invitee) throw new ApiError(404, "No registered user found with that email");
+    const targetTrimmed = target.trim();
+    const invitee = await User.findOne({
+        $or: [
+            { email: targetTrimmed.toLowerCase() },
+            { username: { $regex: new RegExp(`^${targetTrimmed}$`, "i") } }
+        ]
+    });
+    if (!invitee) throw new ApiError(404, "No registered user found with that email or username");
     if (invitee._id.toString() === leaderId.toString()) throw new ApiError(400, "You cannot invite yourself");
 
     const isAlreadyMember =
@@ -30,7 +37,7 @@ export const sendInvite = asyncHandler(async (req, res) => {
         group.leader.toString() === invitee._id.toString();
     if (isAlreadyMember) throw new ApiError(400, "User is already a member of this group");
 
-    const existingInvite = await Invite.findOne({ inviteeEmail: email.toLowerCase().trim(), group: groupId, status: "PENDING" });
+    const existingInvite = await Invite.findOne({ inviteeEmail: invitee.email, group: groupId, status: "PENDING" });
     if (existingInvite) throw new ApiError(409, "A pending invite already exists for this user in this group");
 
     const token = group.generateInviteToken(invitee._id);
@@ -46,25 +53,28 @@ export const sendInvite = asyncHandler(async (req, res) => {
 
     const inviteLink = `${process.env.FRONTEND_URL}/invite?token=${token}`;
 
-    try {
-        await sendInviteEmail({
-            toEmail: invitee.email,
-            toName: invitee.fullName,
-            inviterName: req.user.fullName,
-            groupName: group.teamName,
-            inviteLink,
-        });
-        res.status(201).json(new ApiResponse(201, { inviteId: invite._id }, "Invite sent successfully"));
-    } catch (err) {
-        console.error("Failed to send invite email:", err.message);
-        // We do not delete the invite, so the invitee can still accept it in-app.
-        res.status(201).json(new ApiResponse(201, { inviteId: invite._id }, "Invite created successfully (email skipped)"));
+    const isEmail = target.includes("@");
+
+    if (isEmail) {
+        try {
+            await sendInviteEmail({
+                toEmail: invitee.email,
+                toName: invitee.fullName,
+                inviterName: req.user.fullName,
+                groupName: group.teamName,
+                inviteLink,
+            });
+        } catch (err) {
+            console.error("Failed to send invite email:", err.message);
+        }
     }
 
     const receiverSocketId = getReceiverSocketId(invitee._id.toString());
     if (receiverSocketId) {
         getIo().to(receiverSocketId).emit("new_notification", { type: "invite" });
     }
+
+    res.status(201).json(new ApiResponse(201, { inviteId: invite._id }, isEmail ? "Invite sent successfully via email" : "Invite sent to dashboard directly"));
 });
 
 export const acceptInvite = asyncHandler(async (req, res) => {

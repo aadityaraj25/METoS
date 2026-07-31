@@ -160,3 +160,24 @@ export const leaveGroup = asyncHandler(async (req, res) => {
 
     res.status(200).json(new ApiResponse(200, null, "You have left the group"));
 });
+
+export const removeUser = asyncHandler(async (req, res) => {
+    const { groupId, userId } = req.params;
+    const leaderId = req.user._id;
+
+    const group = await Group.findById(groupId);
+    if (!group) throw new ApiError(404, "Group not found");
+    if (group.leader.toString() !== leaderId.toString()) throw new ApiError(403, "Only the leader can remove users");
+    if (userId.toString() === leaderId.toString()) throw new ApiError(400, "Cannot remove the leader");
+
+    const isMember = group.teamMembers.some((m) => m.toString() === userId.toString());
+    if (!isMember) throw new ApiError(400, "User is not a member of this group");
+
+    group.teamMembers = group.teamMembers.filter((m) => m.toString() !== userId.toString());
+    if (group.status === "CLOSED" && group.teamMembers.length < group.teamSize) group.status = "OPEN";
+    await group.save();
+
+    await User.findByIdAndUpdate(userId, { $pull: { groups: group._id } });
+
+    res.status(200).json(new ApiResponse(200, null, "User removed from the group"));
+});

@@ -60,6 +60,16 @@ export const getMyPendingJoinRequests = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, requests, "Pending join requests fetched successfully"));
 });
 
+export const getMySentJoinRequests = asyncHandler(async (req, res) => {
+    const userId = req.user._id;
+    
+    // Find all pending join requests sent by the current user
+    const requests = await JoinRequest.find({ user: userId, status: "PENDING" })
+        .populate("group", "teamName");
+
+    res.status(200).json(new ApiResponse(200, requests, "Sent join requests fetched successfully"));
+});
+
 export const acceptJoinRequest = asyncHandler(async (req, res) => {
     const { requestId } = req.params;
     const leaderId = req.user._id;

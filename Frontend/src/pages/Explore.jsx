@@ -31,7 +31,8 @@ function ExplorePage() {
       groupsApi.getMyGroups().catch(() => ({ data: { data: [] } })),
       connectionsApi.getConnections().catch(() => ({ data: { data: [] } })),
       connectionsApi.getSent().catch(() => ({ data: { data: [] } })),
-    ]).then(([allGroupsRes, allUsersRes, myProjRes, myGrpRes, myConnRes, mySentRes]) => {
+      joinRequestsApi.getMySent().catch(() => ({ data: { data: [] } })),
+    ]).then(([allGroupsRes, allUsersRes, myProjRes, myGrpRes, myConnRes, mySentRes, mySentJoinRes]) => {
       const g = allGroupsRes.data?.data?.groups || [];
       const u = allUsersRes.data?.data?.users || [];
       const mGroups = myGrpRes.data?.data || [];
@@ -46,13 +47,15 @@ function ExplorePage() {
 
       const mConnIds = mConn.map(c => c.user?._id || c._id);
       const mSentIds = (mySentRes.data?.data || []).map(c => c.receiver?._id || c.receiver);
-      const mGroupIds = mGroups.map(g => g._id);
+      const mGroupIds = mGroups.map(gr => gr._id);
+      const mSentGroupReqIds = (mySentJoinRes.data?.data || []).map(r => r.group?._id || r.group);
 
       const items = [];
       g.forEach(group => {
         const inGroup = mGroupIds.includes(group._id);
-        if (!inGroup || q) {
-          items.push({ kind: "problem", data: group, inGroup });
+        const isRequested = mSentGroupReqIds.includes(group._id);
+        if (!inGroup && !isRequested || q) {
+          items.push({ kind: "problem", data: group, inGroup, isRequested });
         }
       });
       u.filter(x => x._id !== user._id).forEach(usr => {
@@ -272,7 +275,8 @@ function ExplorePage() {
                 const g = item.data;
                 const inGroup = item.inGroup;
                 const isLeader = g.leader?._id === user._id || g.leader === user._id;
-                const btnLabel = inGroup ? (isLeader ? "You're the Leader" : "Leave") : (reqStatus[g._id] || "Request to join");
+                const isRequested = item.isRequested;
+                const btnLabel = inGroup ? (isLeader ? "You're the Leader" : "Leave") : (reqStatus[g._id] || (isRequested ? "Requested" : "Request to join"));
                 return (
                   <div key={i} className="card problem">
                     <span className="card-tag">{g.category || "General"}</span>
@@ -294,7 +298,7 @@ function ExplorePage() {
                       <button
                         className={`cta-btn ${inGroup ? "ghost" : ""}`}
                         onClick={() => inGroup ? (!isLeader && handleLeaveGroup(g._id)) : handleJoinGroup(g._id)}
-                        disabled={isLeader || reqStatus[g._id] === "Requested"}
+                        disabled={isLeader || reqStatus[g._id] === "Requested" || isRequested}
                         style={!inGroup ? { background: "#2E5EAA", color: "#fff", padding: "8px 16px", borderRadius: 8, fontSize: 14, fontWeight: 500, border: "none", cursor: "pointer" } : { padding: "8px 16px", borderRadius: 8, fontSize: 14, fontWeight: 500 }}
                       >
                         {btnLabel}

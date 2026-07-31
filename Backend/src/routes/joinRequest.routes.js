@@ -3,6 +3,7 @@ import {
     createJoinRequest,
     getGroupJoinRequests,
     getMyPendingJoinRequests,
+    getMySentJoinRequests,
     acceptJoinRequest,
     rejectJoinRequest,
 } from "../controllers/joinRequest.controllers.js";
@@ -17,6 +18,9 @@ router.post("/:groupId", createJoinRequest);
 
 // GET /api/v1/join-requests/me/pending - Leader views all pending join requests across their groups
 router.get("/me/pending", getMyPendingJoinRequests);
+
+// GET /api/v1/join-requests/me/sent - User views all pending join requests they have sent
+router.get("/me/sent", getMySentJoinRequests);
 
 // GET /api/v1/join-requests/group/:groupId - Leader views pending requests for a group
 router.get("/group/:groupId", getGroupJoinRequests);
